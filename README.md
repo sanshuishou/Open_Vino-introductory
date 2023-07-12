@@ -24,7 +24,6 @@ Window & Liunx 相同
 
 - python -m pip install --upgrade pip
 - pip install openvino-dev==2023.0.1
-- pip install ultralytics==8.0.43
 - pip install nncf==2.5.0
 - pip install torch==1.13.0+cpu torchvision==0.14.0+cpu torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cpu
 
@@ -42,8 +41,6 @@ PS：以下操作均基于Pytorch框架作为实例且以Yolov8作为实例展�
     
     ```python
     from ultralytics import YOLO
-    #需要注意的是ultralytics的版本问题8.0.43的YOLO类不适用与n规格的
-    #模型，而且8.0.43以上的版本不支持下面提到的Val基准评估。
     model = YOLO('yolov8s.pt') 
     result = model.export(format='onnx') #yolov8原生转换
     ```
@@ -68,10 +65,12 @@ PS：以下操作均基于Pytorch框架作为实例且以Yolov8作为实例展�
 [https://ultralytics.com/assets/coco128.zip](https://ultralytics.com/assets/coco128.zip)
 
 ```python
+#不是coco任务的模型请使用自己的数据集 以下以coco举例
+
 #创造数据coco128
 data_source = create_data_source()
 pot_data_loader = YOLOv5POTDataLoader(data_source)
-#nncf量化数据
+#nncf量化数据 
 nncf_calibration_dataset = nncf.Dataset(data_source, transform_fn)
 #创造量化算子
 core = Core()
@@ -91,32 +90,36 @@ serialize(q_model,nncf_int8_path) #保存出量化后的xml模型
     PS : api.py均来自Intel Open_Vino notebook内 本源码内带有
     
     ```python
-    from PIL import Image
     from api import *
     from ultralytics import YOLO
     from ultralytics.yolo.utils import DEFAULT_CFG
     from ultralytics.yolo.cfg import get_cfg
     from ultralytics.yolo.data.utils import check_det_dataset
     from openvino.runtime import Core
+    from ultralytics.yolo.v8.detect.val import *
     
+    NUM_TEST_SAMPLES = 700  #用多少张图片进行验证
     args = get_cfg(cfg=DEFAULT_CFG)
-    args.data = str('coco128.yaml')#yolov8内自带的yaml文件
-    det_model = YOLO('此处为模型地址')
-    label_map = det_model.model.names
+    args.data = str('tphgf.yaml') #自己的数据集
+    DET_MODEL_NAME = "tph_gf"  #.前面的Name
+    det_model = YOLO('模型路径')
     
+    #分类情况
+    label_map = {0:'dirt',1:'foliage',2:'guano',3:'feather'}
+    
+    #预测情况查看
+    core = Core()
+    det_ov_model = core.read_model('量化后的模型路径')
+    device = 'CPU' #推理的设备
+    det_compiled_model = core.compile_model(det_ov_model,device)
     #评估函数加载
-    det_validator = det_model.ValidatorClass(args=args)
+    det_validator = DetectionValidator()
     det_validator.data = check_det_dataset(args.data)
-    det_data_loader = det_validator.get_dataloader('此处为图片存放的地址如：coco128/images/train2017/', 1)
-    det_validator.is_coco = True  #数据是否是coco
-    det_validator.class_map = ops.coco80_to_coco91_class() #coco标注有80种，但标注序号会有缺失或大于80，用于将标注号归到80内
-    det_validator.names = det_model.model.names
-    det_validator.metrics.names = det_validator.names
-    det_validator.nc = det_model.model.model[-1].nc
+    det_data_loader = det_validator.get_dataloader('数据目录', 1)
     
     #准确度评估
-    #NUM_TEST_SAMPLES为加载多少图片进行评估
-    fp_det_stats = test(det_ov_model, core, det_data_loader, det_validator, num_samples=NUM_TEST_SAMPLES)
+    #其中参数4为你自己的nc数量
+    fp_det_stats = test(det_ov_model, core, det_data_loader, 4,det_validator, num_samples=NUM_TEST_SAMPLES)
     print_stats(fp_det_stats, det_validator.seen, det_validator.nt_per_class.sum())
     ```
     
@@ -147,8 +150,10 @@ from api import *
 from openvino.runtime import Core
 import cv2
 import time
+from PIL import Image
+import numpy as np
 
-def predict(model,cls_maps:dict,obj_path:str,cap:bool=False):
+def predict(model,cls_maps:dict,obj_path:str,cap=False):
     """
     使用Open_Vino量化后预测(目标检测）
     :param model: xml模型（量化后的模型）
@@ -164,16 +169,18 @@ def predict(model,cls_maps:dict,obj_path:str,cap:bool=False):
     device = 'CPU'
     det_compiled_model = core.compile_model(det_ov_model, device)
 
-    if obj_path.split('.')[-1] == '.mp4':
+    if obj_path.split('.')[-1] == 'mp4':
         print('视频模式')
         cm = cv2.VideoCapture(obj_path)
         while True:
             a,frame = cm.read()
             if a:
-                detections = detect(frame, det_compiled_model)[0]
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                detections = detect(frame, det_compiled_model,nc=4)[0]
                 image_with_boxes = draw_results(detections, frame, label_map)
+                image_with_boxes = cv2.cvtColor(image_with_boxes, cv2.COLOR_BGR2RGB)
                 cv2.imshow('vid',image_with_boxes)
-                if 0xff==ord('q')&cv2.waitKey(1):
+                if cv2.waitKey(1) & 0xff==ord('q'):
                     break
                 else:
                     continue
@@ -187,11 +194,13 @@ def predict(model,cls_maps:dict,obj_path:str,cap:bool=False):
             a,frame = cm.read()
             if a:
                 t1 = time.time()
-                detections = detect(frame, det_compiled_model)[0]
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                detections = detect(frame, det_compiled_model,4)[0]
                 image_with_boxes = draw_results(detections, frame, label_map)
                 t2 = time.time()
                 ms = int((t2-t1)*1000)
                 cv2.putText(image_with_boxes,f'FPS:{1000/ms}',(20,20),cv2.FONT_HERSHEY_SIMPLEX,0.75,(0,255,0),2)
+                image_with_boxes = cv2.cvtColor(image_with_boxes, cv2.COLOR_BGR2RGB)
                 cv2.imshow('cm',image_with_boxes)
                 if cv2.waitKey(1)&0xff==ord('q'):
                     break
@@ -202,13 +211,13 @@ def predict(model,cls_maps:dict,obj_path:str,cap:bool=False):
                 break
     else:
         print('图片模式或其他')
-        frame = cv2.imread(obj_path)
-        detections = detect(frame, det_compiled_model)[0]
+        frame = Image.open(obj_path)
+        frame = np.array(frame)
+        detections = detect(frame, det_compiled_model,4)[0]
         image_with_boxes = draw_results(detections, frame, label_map)
-        cv2.imshow('images', image_with_boxes)
-        cv2.waitKey(0)
+        # cv2.imshow('images', image_with_boxes)
+        # cv2.waitKey(0)
+        img = Image.fromarray(image_with_boxes)
+        img.show()
         # cv2.imwrite('result/001.jpg',image_with_boxes)
-
-if __name__ == '__main__':
-    predict('yolov8s_nncf_int8.xml',{0:'person'},'0',cap=True)
 ```
