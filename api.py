@@ -13,7 +13,7 @@ from yolov5.utils.general import check_dataset
 from openvino.tools.pot.api import DataLoader
 
 
-def test(model:Model, core:Core, data_loader:torch.utils.data.DataLoader, validator, num_samples:int = None):
+def test(model:Model, core:Core, data_loader:torch.utils.data.DataLoader,nc ,validator, num_samples:int = None):
     """
     OpenVINO YOLOv8 model accuracy validation function. Runs model validation on dataset and returns metrics
     Parameters:
@@ -28,7 +28,7 @@ def test(model:Model, core:Core, data_loader:torch.utils.data.DataLoader, valida
     validator.jdict = []
     validator.stats = []
     validator.batch_i = 1
-    validator.confusion_matrix = ConfusionMatrix(nc=validator.nc)
+    validator.confusion_matrix = ConfusionMatrix(nc=nc)
     model.reshape({0: [1, 3, -1, -1]})
     num_outputs = len(model.outputs)
     compiled_model = core.compile_model(model)
@@ -213,6 +213,7 @@ def image_to_tensor(image: np.ndarray):
         input_tensor = np.expand_dims(input_tensor, 0)
     return input_tensor
 def postprocess(
+    nc,
     pred_boxes:np.ndarray,
     input_hw:Tuple[int, int],
     orig_img:np.ndarray,
@@ -245,7 +246,7 @@ def postprocess(
         torch.from_numpy(pred_boxes),
         min_conf_threshold,
         nms_iou_threshold,
-        nc=1,
+        nc=nc,
         **nms_kwargs
     )
     results = []
@@ -271,7 +272,7 @@ def postprocess(
         results.append({"det": pred[:, :6].numpy(), "segment": segments})
     return results
 
-def detect(image:np.ndarray, model:Model):
+def detect(image:np.ndarray, model:Model,nc):
     """
     OpenVINO YOLOv8 model inference function. Preprocess image, runs model inference and postprocess results using NMS.
     Parameters:
@@ -289,7 +290,7 @@ def detect(image:np.ndarray, model:Model):
     if num_outputs > 1:
         masks = result[model.output(1)]
     input_hw = input_tensor.shape[2:]
-    detections = postprocess(pred_boxes=boxes, input_hw=input_hw, orig_img=image, pred_masks=masks)
+    detections = postprocess(nc=nc,pred_boxes=boxes, input_hw=input_hw, orig_img=image, pred_masks=masks)
     return detections
 
 def transform_fn(data_item):
@@ -339,16 +340,16 @@ class YOLOv5POTDataLoader(DataLoader):
 
         return (item, annotation), img
 
-def create_data_source():
+def create_data_source(dataset_yaml):
 
-    data = check_dataset('coco128.yaml')
+    data = check_dataset(dataset_yaml)
     val_dataloader = create_dataloader(
         data["val"], imgsz=640, batch_size=1, stride=32, pad=0.5, workers=1
     )[0]
 
     return val_dataloader
 
-def detect_without_preprocess(image:np.ndarray, model:Model):
+def detect_without_preprocess(nc,image:np.ndarray, model:Model):
     """
     OpenVINO YOLOv8 model with integrated preprocessing inference function. Preprocess image, runs model inference and postprocess results using NMS.
     Parameters:
@@ -356,6 +357,7 @@ def detect_without_preprocess(image:np.ndarray, model:Model):
         model (Model): OpenVINO compiled model.
     Returns:
         detections (np.ndarray): detected boxes in format [x1, y1, x2, y2, score, label]
+        :param nc:
     """
     output_layer = model.output(0)
     img = letterbox(image)[0]

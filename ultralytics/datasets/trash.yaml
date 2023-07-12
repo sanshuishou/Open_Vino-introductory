@@ -1,0 +1,57 @@
+# Ultralytics YOLO 🚀, AGPL-3.0 license
+# COCO128 dataset https://www.kaggle.com/ultralytics/coco128 (first 128 images from COCO train2017) by Ultralytics
+# Example usage: yolo train data=coco128.yaml
+# parent
+# ├── ultralytics
+# └── datasets
+#     └── coco128  ← downloads here (7 MB)
+
+
+# Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
+path: D:/AI/cls_trash/data  # dataset root dir
+train: D:/AI/cls_trash/data/images/train  # train images (relative to path) 128 images
+val: D:/AI/cls_trash/data/images/train  # val images (relative to path) 128 images
+test:  # test images (optional)
+
+# Classes
+names:
+  0: Other/defaced plastic
+  1: Other/cigarette butts
+  2: Other/toothpicks
+  3: Other/broken flowerpot and dishes
+  4: Other/bamboo chopsticks
+  5: Kitchen/leftovers
+  6:  Kitchen/bones
+  7:  Kitchen/peel
+  8:  Kitchen/pulp
+  9: Kitchen/tea leaves
+  10:  Kitchen/vegetable leaves and roots
+  11: Kitchen/eggshells
+  12: Kitchen/fish bones
+  13: Recyclables/power banks
+  14: Recyclables/bag
+  15: Recyclables/cosmetic bottles
+  16: Recyclables/plastic toys
+  17: Recyclables/plastic bowl
+  18: Recyclables/plastic hangers
+  19: Recyclables/express paper bags
+  20: Recyclables/plug wire
+  21: Recyclables/old clothes
+  22: Recyclables/cans
+  23: Recyclables/pillows
+  24: Recyclables/stuffed animals
+  25: Recyclables/shampoo bottles
+  26: Recyclables/glasses
+  27: Recyclables/leather shoes
+  28: Recyclables/cutting board
+  29: Recyclables/cardboard boxes
+  30: Recyclables/condiment bottle
+  31: Recyclables/wine bottles
+  32: Recyclables/metal food cans
+  33: Recyclables/pots
+  34: Recyclables/edible oil drum
+  35: Recyclables/beverage bottles
+  36: Hazardous/dry batteries
+  37: Hazardous/ointment
+  38: Hazardous/expired medication
+  39: Other/disposable fast food boxes
