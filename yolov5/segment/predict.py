@@ -3,7 +3,7 @@
 Run YOLOv5 segmentation inference on images, videos, directories, streams, etc.
 
 Usage - sources:
-    $ python segment/predict.py --weights yolov5s-seg.pt --source 0                               # webcam
+    $ python segment/val.py --weights yolov5s-seg.pt --source 0                               # webcam
                                                                   img.jpg                         # image
                                                                   vid.mp4                         # video
                                                                   screen                          # screenshot
@@ -15,7 +15,7 @@ Usage - sources:
                                                                   'rtsp://example.com/media.mp4'  # RTSP, RTMP, HTTP stream
 
 Usage - formats:
-    $ python segment/predict.py --weights yolov5s-seg.pt                 # PyTorch
+    $ python segment/val.py --weights yolov5s-seg.pt                 # PyTorch
                                           yolov5s-seg.torchscript        # TorchScript
                                           yolov5s-seg.onnx               # ONNX Runtime or OpenCV DNN with --dnn
                                           yolov5s-seg_openvino_model     # OpenVINO
